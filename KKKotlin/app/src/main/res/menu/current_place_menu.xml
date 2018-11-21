@@ -4,7 +4,7 @@
 
     <item
         android:id="@+id/option_pick_place"
-        android:title="@string/option_get_place"
+        android:title="@string/option_pick_place"
         app:showAsAction="never"/>
     <item
         android:id="@+id/option_get_place"

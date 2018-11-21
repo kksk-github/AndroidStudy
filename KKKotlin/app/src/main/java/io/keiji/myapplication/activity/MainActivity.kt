@@ -2,6 +2,7 @@ package io.keiji.myapplication.activity
 
 import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.app.Activity
+import android.app.Application
 import android.content.DialogInterface
 import android.content.Intent
 import android.support.v7.app.AppCompatActivity
@@ -51,12 +52,10 @@ class MainActivity : AppCompatActivity()
         , GoogleMap.OnMapClickListener {
 
     private lateinit var mMap: GoogleMap
-    private var mLocationPermissionGranted: Boolean = false
     private lateinit var mLastKnownLocation: Location
     private lateinit var mGeoDataClient: GeoDataClient
     private lateinit var mPlaceDetectionClient: PlaceDetectionClient
     private lateinit var mFusedLocationProviderClient: FusedLocationProviderClient
-    private var placeInfoList: MutableList<PlaceInfo> = mutableListOf()
 
     /**
      * Activity onCreate
@@ -75,24 +74,26 @@ class MainActivity : AppCompatActivity()
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
 
         // 位置情報権限を確認し、あればマップを準備、なければ権限のリクエスト
-        mLocationPermissionGranted = ContextCompat.checkSelfPermission(this.applicationContext,
+        this.initMapWithConfirmPermission()
+    }
+
+    /**
+     * 位置情報取得権限を確認し、あればマップを準備、なければ位置情報取得権限のリクエストを行う.
+     * 位置情報取得権限がつかない限りループする.
+     */
+    private fun initMapWithConfirmPermission(){
+        val isLocationPermissionGranted = ContextCompat.checkSelfPermission(this.applicationContext,
                 ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if(mLocationPermissionGranted){
-            initMapFragment()
+
+        if(isLocationPermissionGranted){
+            val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
+            mapFragment.getMapAsync(this)
         } else {
+            Toast.makeText(this.applicationContext, "アプリ実行には位置情報権限が必要です.", Toast.LENGTH_LONG)
             ActivityCompat.requestPermissions(this,
                     arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
                     PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION)
         }
-    }
-
-    /**
-     * MapFragmentを初期化する
-     * 複数回呼ばないこと
-     */
-    private fun initMapFragment(){
-        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
-        mapFragment.getMapAsync(this)
     }
 
     /**
@@ -113,26 +114,6 @@ class MainActivity : AppCompatActivity()
     }
 
     /**
-     * GoogleMap onMarkerClick
-     */
-    override fun onMarkerClick(marker: Marker): Boolean {
-        var message = StringBuilder()
-                .appendln(marker.title)
-                .append("緯度：").appendln(marker.position.latitude)
-                .append("経度：").appendln(marker.position.longitude)
-                .toString()
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        return false
-    }
-
-    /**
-     * GoogleMap onMapClick
-     */
-    override fun onMapClick(p0: LatLng?) {
-        mMap.addMarker(MarkerOptions().position(p0!!).title("New Marker"))
-    }
-
-    /**
      * LocationPermission RequestResult
      */
     override fun onRequestPermissionsResult(requestCode: Int,
@@ -140,13 +121,7 @@ class MainActivity : AppCompatActivity()
                                             grantResults: IntArray) {
         when (requestCode) {
             PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION -> {
-                // If request is cancelled, the result arrays are empty.
-                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    mLocationPermissionGranted = true
-                    initMapFragment()
-                } else {
-                    Toast.makeText(this.applicationContext, "実行には位置情報権限が必要です.", Toast.LENGTH_LONG)
-                }
+                this.initMapWithConfirmPermission()
             }
         }
     }
@@ -218,14 +193,13 @@ class MainActivity : AppCompatActivity()
     /**
      * ActivityResult受け取り処理
      */
-    override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent){
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?){
         /**
          * PlacePickerで取得した情報をPlaceInfoとして保持する
          */
         if(requestCode == PLACE_PICKER_REQUEST && resultCode == Activity.RESULT_OK){
-            val place = PlacePicker.getPlace(this, intent)
-            val placeInfo = PlaceInfo(place.name.toString(), place.address.toString(), )
-            Toast.makeText(this, "Place: ${place.name}", Toast.LENGTH_LONG).show()
+            val place = PlacePicker.getPlace(this, data)
+            addMarker(PlaceInfo(place))
         }
     }
 
@@ -233,9 +207,6 @@ class MainActivity : AppCompatActivity()
      * 現在地の近くから5件プレイスを取得する
      */
     private fun getPlaceInfo(maxEntries: Int) {
-        // リストを初期化
-        placeInfoList.clear()
-
         val placeResult = mPlaceDetectionClient.getCurrentPlace(null)
         placeResult.addOnCompleteListener(object : OnCompleteListener<PlaceLikelihoodBufferResponse> {
             override fun onComplete(task: Task<PlaceLikelihoodBufferResponse>) {
@@ -251,6 +222,8 @@ class MainActivity : AppCompatActivity()
                 } else {
                     maxEntries
                 }
+
+                val placeInfoList: MutableList<PlaceInfo> = mutableListOf()
 
                 for ((index, placeLikelihood) in likelyPlaces.withIndex()) {
                     val name = placeLikelihood.place.name as String
@@ -272,42 +245,70 @@ class MainActivity : AppCompatActivity()
                 // Release the place likelihood buffer, to avoid memory leaks.
                 likelyPlaces.release()
 
-                openPlacesDialog()
+                openPlacesDialog(placeInfoList)
             }
         })
     }
 
     /**
      * 取得されたプレイスをダイアログで表示
-     * 選択されたプレイスにマーカーを打ち、カメラ移動
      */
-    private fun openPlacesDialog() {
-        // Ask the user to choose the place where they are now.
+    private fun openPlacesDialog(placeInfoList: List<PlaceInfo>) {
+        // ダイアログクリック時イベント登録
+        // クリックされたPlaceInfoでマーカーを打つ
         val listener = DialogInterface.OnClickListener { _, which ->
-            // The "which" argument contains the position of the selected item.
-            val markerSnippet = if (placeInfoList[which].attribution.isNullOrEmpty()) {
-                placeInfoList[which].address
-            } else {
-                placeInfoList[which].address + "\n" + placeInfoList[which].attribution
-            }
-
-            // Add a marker for the selected place, with an info window
-            // showing information about that place.
-            mMap.addMarker(MarkerOptions()
-                    .title(placeInfoList[which].name)
-                    .position(placeInfoList[which].latLng)
-                    .snippet(markerSnippet))
-
-            // Position the map's camera at the location of the marker.
-            mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(placeInfoList[which].latLng, DEFAULT_ZOOM))
+            addMarker(placeInfoList[which])
         }
 
+        // ダイアログ表示用のPlaceNameリストを生成
         val places = placeInfoList.map({v -> v.name}).toTypedArray()
 
-        // Display the dialog.
+        // プレイス選択ダイアログを表示する
         AlertDialog.Builder(this)
                 .setTitle(R.string.pick_place)
                 .setItems(places, listener)
                 .show()
+    }
+
+    /**
+     * 渡されたPlaceInfoを元にMapにMarkerを打つ
+     */
+    private fun addMarker(placeInfo: PlaceInfo){
+        // Attributionの有無をチェックしてスニペットを作成
+        val markerSnippet = if (placeInfo.attribution.isNullOrEmpty()) {
+            placeInfo.address
+        } else {
+            placeInfo.address + "\n" + placeInfo.attribution
+        }
+
+        // マーカーを生成してカメラを移動
+        mMap.addMarker(MarkerOptions()
+                .title(placeInfo.name)
+                .position(placeInfo.latLng)
+                .snippet(markerSnippet))
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(placeInfo.latLng, DEFAULT_ZOOM))
+    }
+
+
+
+
+    /**
+     * GoogleMap onMarkerClick
+     */
+    override fun onMarkerClick(marker: Marker): Boolean {
+//        var message = StringBuilder()
+//                .appendln(marker.title)
+//                .append("緯度：").appendln(marker.position.latitude)
+//                .append("経度：").appendln(marker.position.longitude)
+//                .toString()
+//        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        return false
+    }
+
+    /**
+     * GoogleMap onMapClick
+     */
+    override fun onMapClick(p0: LatLng?) {
+//    mMap.addMarker(MarkerOptions().position(p0!!).title("New Marker"))
     }
 }
