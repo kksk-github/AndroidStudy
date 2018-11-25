@@ -1,8 +1,9 @@
 package io.keiji.myapplication.activity
 
+import android.Manifest
 import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.annotation.SuppressLint
 import android.app.Activity
-import android.app.Application
 import android.content.DialogInterface
 import android.content.Intent
 import android.support.v7.app.AppCompatActivity
@@ -19,6 +20,10 @@ import com.google.android.gms.maps.model.Marker
 import android.support.v4.app.ActivityCompat
 import android.content.pm.PackageManager
 import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
+import android.location.LocationProvider
+import android.provider.Settings
 import android.support.v4.content.ContextCompat
 import android.support.v7.app.AlertDialog
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -49,7 +54,38 @@ private const val PLACE_PICKER_REQUEST: Int = 1
 class MainActivity : AppCompatActivity()
         , OnMapReadyCallback
         , GoogleMap.OnMarkerClickListener
-        , GoogleMap.OnMapClickListener {
+        , GoogleMap.OnMapClickListener
+        , LocationListener{
+
+    private lateinit var locationManager: LocationManager
+
+    override fun onProviderDisabled(p0: String?) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun onProviderEnabled(p0: String?) {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
+    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {
+        when (status) {
+            LocationProvider.AVAILABLE -> {
+                Log.d("debug", "LocationProvider.AVAILABLE")
+            }
+
+            LocationProvider.OUT_OF_SERVICE -> {
+                Log.d("debug", "LocationProvider.OUT_OF_SERVICE")
+            }
+
+            LocationProvider.TEMPORARILY_UNAVAILABLE -> {
+                Log.d("debug", "LocationProvider.TEMPORARILY_UNAVAILABLE")
+            }
+        }
+    }
+
+    override fun onLocationChanged(location: Location?) {
+        Toast.makeText(this, "${location.latitude}, ${location.longitude}", Toast.LENGTH_SHORT)
+    }
 
     private lateinit var mMap: GoogleMap
     private lateinit var mLastKnownLocation: Location
@@ -64,15 +100,6 @@ class MainActivity : AppCompatActivity()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.fragment_map)
 
-        // Construct a GeoDataClient.
-        mGeoDataClient = Places.getGeoDataClient(this, null)
-
-        // Construct a PlaceDetectionClient.
-        mPlaceDetectionClient = Places.getPlaceDetectionClient(this, null)
-
-        // Construct a FusedLocationProviderClient.
-        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
-
         // 位置情報権限を確認し、あればマップを準備、なければ権限のリクエスト
         this.initMapWithConfirmPermission()
     }
@@ -85,15 +112,50 @@ class MainActivity : AppCompatActivity()
         val isLocationPermissionGranted = ContextCompat.checkSelfPermission(this.applicationContext,
                 ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
 
-        if(isLocationPermissionGranted){
-            val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
-            mapFragment.getMapAsync(this)
-        } else {
+        if(!isLocationPermissionGranted){
             Toast.makeText(this.applicationContext, "アプリ実行には位置情報権限が必要です.", Toast.LENGTH_LONG)
             ActivityCompat.requestPermissions(this,
                     arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION),
                     PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION)
+            return
         }
+
+        this.locationStart()
+
+        locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                1000, 50.0f, this)
+
+        // Construct a GeoDataClient.
+        mGeoDataClient = Places.getGeoDataClient(this, null)
+
+        // Construct a PlaceDetectionClient.
+        mPlaceDetectionClient = Places.getPlaceDetectionClient(this, null)
+
+        // Construct a FusedLocationProviderClient.
+        mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this)
+
+        val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync(this)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun locationStart(){
+        // LocationManager インスタンス生成
+        locationManager = getSystemService(LOCATION_SERVICE) as LocationManager
+
+        if (locationManager != null && locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            Log.d("debug", "location manager Enabled")
+        } else {
+            // GPSを設定するように促す
+            val settingsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            startActivity(settingsIntent)
+        }
+
+        locationManager.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                1000, 50f, this)
+
     }
 
     /**
@@ -206,6 +268,7 @@ class MainActivity : AppCompatActivity()
     /**
      * 現在地の近くから5件プレイスを取得する
      */
+    @SuppressLint("MissingPermission")
     private fun getPlaceInfo(maxEntries: Int) {
         val placeResult = mPlaceDetectionClient.getCurrentPlace(null)
         placeResult.addOnCompleteListener(object : OnCompleteListener<PlaceLikelihoodBufferResponse> {
