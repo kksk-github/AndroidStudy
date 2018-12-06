@@ -8,6 +8,14 @@
     android:orientation="vertical"
     tools:context="io.keiji.myapplication.activity.SampleActivity">
 
+    <Button
+        android:id="@+id/stopBtn"
+        android:layout_width="match_parent"
+        android:layout_height="100sp"
+        android:text="アラーム止めるよぉぉぉぉぉぉ"
+        android:textSize="20sp"
+        />
+
     <LinearLayout
         android:id="@+id/container1"
         android:layout_width="match_parent"

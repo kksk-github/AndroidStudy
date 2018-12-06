@@ -5,16 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import io.keiji.myapplication.R
 import android.support.v4.app.Fragment
 import android.support.v4.app.NotificationCompat
 
 import kotlinx.android.synthetic.main.fragment_sample.*
 import android.media.RingtoneManager
-
+import android.view.*
+import org.greenrobot.eventbus.EventBus
 
 
 class SampleFragment : Fragment() {
@@ -44,6 +42,7 @@ class SampleFragment : Fragment() {
                               container: ViewGroup?,
                               savedInstanceState: Bundle?): View? {
         super.onCreateView(inflater, container, savedInstanceState)
+        setHasOptionsMenu(true)
         return inflater?.inflate(R.layout.fragment_sample, container, false)
     }
 

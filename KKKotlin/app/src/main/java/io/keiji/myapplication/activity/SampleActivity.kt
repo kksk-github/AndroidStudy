@@ -3,7 +3,11 @@ package io.keiji.myapplication.activity
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import io.keiji.myapplication.R
+import io.keiji.myapplication.event.ToastEvent
+import io.keiji.myapplication.event.StopAlertEvent
 import io.keiji.myapplication.fragment.SampleFragment
+import kotlinx.android.synthetic.main.activity_sample.*
+import org.greenrobot.eventbus.EventBus
 
 class SampleActivity : AppCompatActivity() {
 
@@ -17,6 +21,13 @@ class SampleActivity : AppCompatActivity() {
 
             transaction.commit()
         }
+
+        stopBtn.setOnClickListener {
+            EventBus.getDefault().post(ToastEvent("hogehoge"))
+            EventBus.getDefault().post(StopAlertEvent())
+            finish()
+        }
+
     }
 
 }
