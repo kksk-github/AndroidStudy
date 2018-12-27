@@ -190,7 +190,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     /**
      * PlacePickerを表示する
      */
-    private fun pickPlaceInfo(){
+    fun pickPlaceInfo(){
         val builder = PlacePicker.IntentBuilder()
         builder.setLatLngBounds(LatLngBounds(LatLng(currentLatLng.latitude, currentLatLng.longitude)
                 , LatLng(currentLatLng.latitude, currentLatLng.longitude + 1)))
@@ -214,7 +214,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
      * 現在地付近のプレイスを取得する
      */
     @SuppressLint("MissingPermission")
-    private fun getAroundCurrentPlaces(maxEntries: Int) {
+    fun getAroundCurrentPlaces() {
         val placeResult = mPlaceDetectionClient.getCurrentPlace(null)
         placeResult.addOnCompleteListener(object : OnCompleteListener<PlaceLikelihoodBufferResponse> {
             override fun onComplete(task: Task<PlaceLikelihoodBufferResponse>) {
@@ -224,7 +224,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
 
                 val likelyPlaces = task.result
 
-                // Set the count, handling cases where less than 5 entries are returned.
+                val maxEntries = 10
                 val count: Int = if (likelyPlaces.count < maxEntries) {
                     likelyPlaces.count
                 } else {
@@ -296,4 +296,6 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
                 .snippet(markerSnippet))
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(placeInfo.latLng, DEFAULT_ZOOM))
     }
+
+
 }
