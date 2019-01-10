@@ -11,12 +11,15 @@ import android.media.Ringtone
 import android.media.RingtoneManager
 import android.os.VibrationEffect
 import android.os.Vibrator
+import com.google.android.gms.maps.model.LatLng
 import io.keiji.myapplication.R
 import io.keiji.myapplication.event.*
 import io.keiji.myapplication.fragment.GMapFragment
 import io.keiji.myapplication.fragment.OptionFragment
+import io.keiji.myapplication.service.LocationService
 import org.greenrobot.eventbus.EventBus
 import org.greenrobot.eventbus.Subscribe
+import timber.log.Timber
 
 /**
  * Map表示のActivity
@@ -28,6 +31,7 @@ class MainActivity : AppCompatActivity(){
      */
     @Subscribe
     fun toastEvent(event: ToastEvent){
+        Timber.i("hoge : " + event.text)
         Toast.makeText(this, event.text, Toast.LENGTH_LONG).show()
     }
 
@@ -36,7 +40,9 @@ class MainActivity : AppCompatActivity(){
      */
     @Subscribe
     fun updateLocationEvent(event: NotifyLocationEvent){
-//        this.currentLatLng = LatLng(event.location.latitude, event.location.longitude)
+        supportFragmentManager.findFragmentById(R.id.mapContainer)?.let{
+            (it as GMapFragment).updateCurrentLatLng(LatLng(event.location.latitude, event.location.longitude))
+        }
     }
 
     /**
@@ -45,6 +51,7 @@ class MainActivity : AppCompatActivity(){
     @Subscribe
     fun startAlertEvent(event: StartAlertEvent){
 //        locationManager.removeUpdates(appListener)
+        Timber.d("startAlert")
         ringtone.play()
         vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
         startActivity(Intent(this, SampleActivity::class.java))
@@ -58,7 +65,6 @@ class MainActivity : AppCompatActivity(){
     fun stopAlertEvent(event: StopAlertEvent){
         ringtone.stop()
         vibrator.cancel()
-
 //        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER,MIN_TIME, MIN_DISTANCE, appListener)
     }
 
@@ -109,6 +115,9 @@ class MainActivity : AppCompatActivity(){
 
             transaction.commit()
         }
+
+        // LocationServiceを開始
+        startService()
     }
 
     /**
@@ -119,5 +128,21 @@ class MainActivity : AppCompatActivity(){
 
         // アプリケーション全体のイベント停止
         EventBus.getDefault().unregister(this)
+
+        // LocationServiceを停止
+        stopService()
     }
+
+    private fun startService(){
+        Timber.i("hoge:Start Service.")
+        val intent = Intent(this, LocationService::class.java)
+        startForegroundService(intent)
+    }
+
+    private fun stopService(){
+        Timber.i("hoge:Stop Service")
+        val intent = Intent(this, LocationService::class.java)
+        stopService(intent)
+    }
+
 }

@@ -6,14 +6,11 @@ import android.app.Activity
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.location.LocationManager
 import android.os.Bundle
-import android.provider.Settings
 import android.support.v4.app.ActivityCompat
 import android.support.v4.app.Fragment
 import android.support.v4.content.ContextCompat
 import android.support.v7.app.AlertDialog
-import android.support.v7.app.AppCompatActivity
 import android.util.Log
 import android.view.*
 import android.widget.Toast
@@ -35,12 +32,13 @@ import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
 import io.keiji.myapplication.R
 import io.keiji.myapplication.entity.PlaceInfo
-import io.keiji.myapplication.listener.AppListener
+import io.keiji.myapplication.event.StartAlertEvent
+import io.keiji.myapplication.listener.LocationListener
+import io.keiji.myapplication.listener.MapListener
+import org.greenrobot.eventbus.EventBus
 import timber.log.Timber
 
 private const val PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: Int = 1
-private const val MIN_TIME: Long = 10000
-private const val MIN_DISTANCE: Float = 10.0f
 private const val DEFAULT_ZOOM: Float = 15f
 private const val PLACE_PICKER_REQUEST: Int = 1
 
@@ -49,22 +47,17 @@ private const val PLACE_PICKER_REQUEST: Int = 1
  */
 class GMapFragment: Fragment(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
-    private lateinit var appListener: AppListener
-    private lateinit var locationManager: LocationManager
     private lateinit var mGeoDataClient: GeoDataClient
     private lateinit var mPlaceDetectionClient: PlaceDetectionClient
     private lateinit var mFusedLocationProviderClient: FusedLocationProviderClient
+    private lateinit var mapListener: MapListener
 
     private var currentLatLng: LatLng = LatLng(0.0, 0.0)
 
     override fun onCreate(savedInstanceState: Bundle?){
         super.onCreate(savedInstanceState)
 
-        // アプリケーション全体のリスナ初期化
-        appListener = AppListener()
-
-        // 現在値取得用Manager初期化
-        locationManager = activity.getSystemService(AppCompatActivity.LOCATION_SERVICE) as LocationManager
+        mapListener = MapListener()
     }
 
     override fun onCreateView(inflater: LayoutInflater?,
@@ -116,12 +109,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
      */
     @SuppressLint("MissingPermission")
     private fun initMap(){
-        // GPS設定の確認、無効の場合は有効化を促してGPSから現在値を取得させる
-        if (!locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
-            val settingsIntent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-            startActivity(settingsIntent)
-        }
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_TIME, MIN_DISTANCE, appListener)
+//        (activity as MainActivity).startService()
 
         // GoogleMapAPIClientの初期化
         mGeoDataClient = Places.getGeoDataClient(activity, null)
@@ -141,8 +129,8 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     override fun onMapReady(googleMap: GoogleMap) {
         // Mapを初期化
         mMap = googleMap
-        googleMap.setOnMarkerClickListener(appListener)
-        googleMap.setOnMapClickListener(appListener)
+        googleMap.setOnMarkerClickListener(mapListener)
+        googleMap.setOnMapClickListener(mapListener)
 
         // 現在値表示ボタンを追加する
         setCurrentButton(true)
@@ -297,5 +285,14 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
         mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(placeInfo.latLng, DEFAULT_ZOOM))
     }
 
+    fun updateCurrentLatLng(currentLatLng: LatLng){
+        // 距離が一定以内に入ったらお知らせイベント
+        if(this.mapListener.distanceLogic.isNotify(currentLatLng)){
+            EventBus.getDefault().post(StartAlertEvent())
+        }
 
+        this.currentLatLng = currentLatLng
+
+        this.mapListener.setTargetLocation(currentLatLng)
+    }
 }
