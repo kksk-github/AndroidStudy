@@ -9,6 +9,8 @@ import io.keiji.myapplication.fragment.SampleFragment
 import kotlinx.android.synthetic.main.activity_sample.*
 import org.greenrobot.eventbus.EventBus
 
+
+
 class SampleActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,11 +25,18 @@ class SampleActivity : AppCompatActivity() {
         }
 
         stopBtn.setOnClickListener {
-            EventBus.getDefault().post(ToastEvent("hogehoge"))
-            EventBus.getDefault().post(StopAlertEvent())
             finish()
         }
+    }
 
+    override fun finish(){
+        stopAlert()
+        super.finish()
+    }
+
+    private fun stopAlert(){
+        EventBus.getDefault().post(ToastEvent("hogehoge"))
+        EventBus.getDefault().post(StopAlertEvent())
     }
 
 }

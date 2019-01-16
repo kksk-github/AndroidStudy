@@ -33,7 +33,6 @@ import com.google.android.gms.tasks.Task
 import io.keiji.myapplication.R
 import io.keiji.myapplication.entity.PlaceInfo
 import io.keiji.myapplication.event.StartAlertEvent
-import io.keiji.myapplication.listener.LocationListener
 import io.keiji.myapplication.listener.MapListener
 import org.greenrobot.eventbus.EventBus
 import timber.log.Timber

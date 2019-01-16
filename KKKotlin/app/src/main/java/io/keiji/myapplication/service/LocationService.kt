@@ -1,12 +1,16 @@
 package io.keiji.myapplication.service
 
 import android.annotation.SuppressLint
-import android.app.Service
+import android.app.*
+import android.content.Context
 import android.content.Intent
 import android.location.LocationManager
 import android.os.IBinder
 import android.provider.Settings
+import android.support.v4.app.NotificationCompat
 import android.support.v7.app.AppCompatActivity
+import io.keiji.myapplication.R
+import io.keiji.myapplication.activity.MainActivity
 import io.keiji.myapplication.listener.LocationListener
 import timber.log.Timber
 
@@ -43,12 +47,34 @@ class LocationService: Service() {
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_TIME, MIN_DISTANCE, locationListener)
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_TIME, MIN_DISTANCE, locationListener)
 
-        return super.onStartCommand(intent, flags, startId)
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val name = "寝過ごし防止アラーム"
+        val id = "location_foreground"
+        val notifyDescription = "位置情報を取得しています。"
+
+        if (manager.getNotificationChannel(id) == null) {
+            val mChannel = NotificationChannel(id, name, NotificationManager.IMPORTANCE_HIGH)
+            mChannel.apply {
+                description = notifyDescription
+            }
+            manager.createNotificationChannel(mChannel)
+        }
+
+        val notification = NotificationCompat.Builder(this, id).apply {
+            mContentTitle = name
+            mContentText = notifyDescription
+            setSmallIcon(R.mipmap.ic_launcher)
+        }.build()
+
+        startForeground(1, notification)
+
+        return START_STICKY
     }
 
     override fun onDestroy() {
         Timber.i("hoge:LocationService_onDestroy")
         locationManager.removeUpdates(locationListener)
+        stopForeground(true)
     }
 
     override fun onBind(p0: Intent?): IBinder {
