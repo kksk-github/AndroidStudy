@@ -34,11 +34,6 @@
             android:name=".activity.SampleActivity"
             android:label="@string/title_activity_sample">
         </activity>
-        <activity
-            android:name=".activity.MainActivity$StopAlertNotify"
-            android:parentActivityName=".activity.MainActivity">
-
-        </activity>
         <service android:name=".service.LocationService" />
         <receiver android:name=".receiver.NotificationReceiver">
             <intent-filter>

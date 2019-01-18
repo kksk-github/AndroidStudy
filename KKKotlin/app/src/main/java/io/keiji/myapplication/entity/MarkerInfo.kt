@@ -7,7 +7,7 @@ import com.google.android.gms.maps.model.LatLng
 /**
  * Created by z00s600051 on 2018/11/13.
  */
-class PlaceInfo{
+class MarkerInfo {
     var name:String
     var address:String
     var attribution: String

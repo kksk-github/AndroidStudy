@@ -21,7 +21,6 @@ class LocationListener : LocationListener{
      * 位置情報が変わった時の通知
      */
     override fun onLocationChanged(location: Location) {
-        EventBus.getDefault().post(ToastEvent("${location.latitude}, ${location.longitude}"))
         EventBus.getDefault().post(NotifyLocationEvent(location))
     }
 }

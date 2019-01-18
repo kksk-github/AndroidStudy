@@ -7,6 +7,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.graphics.Color
 import android.support.v7.app.AppCompatActivity
 
@@ -14,12 +15,9 @@ import android.os.Bundle
 import android.widget.Toast
 import android.media.Ringtone
 import android.media.RingtoneManager
-import android.net.Uri
-import android.os.PersistableBundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.support.v4.app.NotificationCompat
-import android.support.v4.app.TaskStackBuilder
 import com.google.android.gms.maps.model.LatLng
 import io.keiji.myapplication.R
 import io.keiji.myapplication.event.*
@@ -36,6 +34,10 @@ import timber.log.Timber
  * Map表示のActivity
  */
 class MainActivity : AppCompatActivity(){
+    private lateinit var ringtone: Ringtone
+    private lateinit var vibrator: Vibrator
+    private lateinit var pattern: LongArray
+    private lateinit var notification: Notification
 
     /**
      * Toastを表示する用受け口
@@ -70,6 +72,7 @@ class MainActivity : AppCompatActivity(){
         // 通知を送信
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         manager.notify(123, notification)
+
     }
 
     /**
@@ -98,11 +101,6 @@ class MainActivity : AppCompatActivity(){
             }
         }
     }
-
-    private lateinit var ringtone: Ringtone
-    private lateinit var vibrator: Vibrator
-    private lateinit var pattern: LongArray
-    private lateinit var notification: Notification
 
     /**
      * Activity onCreate

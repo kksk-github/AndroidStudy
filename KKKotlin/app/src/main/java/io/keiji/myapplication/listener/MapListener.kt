@@ -12,7 +12,7 @@ import org.greenrobot.eventbus.EventBus
  */
 class MapListener:GoogleMap.OnMarkerClickListener , GoogleMap.OnMapClickListener{
 
-    var distanceLogic: DistanceLogic
+    private var distanceLogic: DistanceLogic
 
     init{
         distanceLogic = DistanceLogic()
@@ -36,7 +36,10 @@ class MapListener:GoogleMap.OnMarkerClickListener , GoogleMap.OnMapClickListener
 //    mMap.addMarker(MarkerOptions().position(p0!!).title("New Marker"))
     }
 
-    fun setTargetLocation(latLng: LatLng){
-        this.distanceLogic.setTargetLocation(latLng)
+    /**
+     * 現在地からの距離をチェック
+     */
+    fun isNotify(latLng: LatLng): Boolean{
+        return this.distanceLogic.isNotify(latLng)
     }
 }

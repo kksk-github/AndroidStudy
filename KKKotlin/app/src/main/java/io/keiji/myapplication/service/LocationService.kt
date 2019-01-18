@@ -10,12 +10,11 @@ import android.provider.Settings
 import android.support.v4.app.NotificationCompat
 import android.support.v7.app.AppCompatActivity
 import io.keiji.myapplication.R
-import io.keiji.myapplication.activity.MainActivity
 import io.keiji.myapplication.listener.LocationListener
 import timber.log.Timber
 
-private const val MIN_TIME: Long = 1000
-private const val MIN_DISTANCE: Float = 10.0f
+private const val MIN_TIME: Long = 10000 // ミリ秒
+private const val MIN_DISTANCE: Float = 50.0f // メートル
 
 /**
  * Created by z00s600051 on 2019/01/07.

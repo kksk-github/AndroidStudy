@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.DialogInterface
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.support.v4.app.ActivityCompat
@@ -31,15 +32,17 @@ import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
 import io.keiji.myapplication.R
-import io.keiji.myapplication.entity.PlaceInfo
+import io.keiji.myapplication.entity.MarkerInfo
 import io.keiji.myapplication.event.StartAlertEvent
 import io.keiji.myapplication.listener.MapListener
+import io.keiji.myapplication.util.PreferenceUtil.Companion.preferenceUtil
 import org.greenrobot.eventbus.EventBus
 import timber.log.Timber
 
 private const val PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: Int = 1
 private const val DEFAULT_ZOOM: Float = 15f
 private const val PLACE_PICKER_REQUEST: Int = 1
+private const val SHARED_PREFERENCE_FILE_NAME = "DEFAULT_PREF"
 
 /**
  * Created by z00s600051 on 2018/12/05.
@@ -50,13 +53,16 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     private lateinit var mPlaceDetectionClient: PlaceDetectionClient
     private lateinit var mFusedLocationProviderClient: FusedLocationProviderClient
     private lateinit var mapListener: MapListener
+    private lateinit var markers: MutableList<MarkerInfo>
+    private lateinit var pref: SharedPreferences
 
     private var currentLatLng: LatLng = LatLng(0.0, 0.0)
 
     override fun onCreate(savedInstanceState: Bundle?){
         super.onCreate(savedInstanceState)
 
-        mapListener = MapListener()
+        mapListener = MapListener()        // Preferenceを定義
+        pref = activity.getSharedPreferences(SHARED_PREFERENCE_FILE_NAME, 0)
     }
 
     override fun onCreateView(inflater: LayoutInflater?,
@@ -70,6 +76,12 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
         super.onActivityCreated(savedInstanceState)
 
         this.requestPermission()
+    }
+
+    override fun onPause(){
+        super.onPause()
+
+        preferenceUtil.setMarkers(pref, markers)
     }
 
     /**
@@ -108,8 +120,6 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
      */
     @SuppressLint("MissingPermission")
     private fun initMap(){
-//        (activity as MainActivity).startService()
-
         // GoogleMapAPIClientの初期化
         mGeoDataClient = Places.getGeoDataClient(activity, null)
         mPlaceDetectionClient = Places.getPlaceDetectionClient(activity, null)
@@ -136,6 +146,12 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
 
         // 現在値を取得し、マップをそこに持っていく
         initLocationToCurrent()
+
+        // Preferenceからマーカー情報を取得して画面にセット
+        markers = preferenceUtil.getMarkers(pref)
+        for(marker: MarkerInfo in markers){
+            addMarker(marker)
+        }
     }
 
 
@@ -193,7 +209,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
          */
         if(requestCode == PLACE_PICKER_REQUEST && resultCode == Activity.RESULT_OK){
             val place = PlacePicker.getPlace(activity, data)
-            addMarker(PlaceInfo(place))
+            addMarker(MarkerInfo(place))
         }
     }
 
@@ -218,7 +234,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
                     maxEntries
                 }
 
-                val placeInfoList: MutableList<PlaceInfo> = mutableListOf()
+                val placeInfoList: MutableList<MarkerInfo> = mutableListOf()
 
                 for ((index, placeLikelihood) in likelyPlaces.withIndex()) {
                     val name = placeLikelihood.place.name as String
@@ -230,7 +246,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
                     }
                     val latLng = placeLikelihood.place.latLng
 
-                    placeInfoList.add(PlaceInfo(name, address, attribution, latLng))
+                    placeInfoList.add(MarkerInfo(name, address, attribution, latLng))
 
                     if (index >= (count - 1)) {
                         break
@@ -248,9 +264,9 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     /**
      * 取得されたプレイスをダイアログで表示
      */
-    private fun openPlacesDialog(placeInfoList: List<PlaceInfo>) {
+    private fun openPlacesDialog(placeInfoList: List<MarkerInfo>) {
         // ダイアログクリック時イベント登録
-        // クリックされたPlaceInfoでマーカーを打つ
+        // クリックされたMarkerInfoでマーカーを打つ
         val listener = DialogInterface.OnClickListener { _, which ->
             addMarker(placeInfoList[which])
         }
@@ -266,32 +282,32 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     }
 
     /**
-     * 渡されたPlaceInfoを元にMapにMarkerを打つ
+     * 渡されたMarkerInfoを元にMapにMarkerを打つ
      */
-    private fun addMarker(placeInfo: PlaceInfo){
+    private fun addMarker(markerInfo: MarkerInfo){
         // Attributionの有無をチェックしてスニペットを作成
-        val markerSnippet = if (placeInfo.attribution.isNullOrEmpty()) {
-            placeInfo.address
+        val markerSnippet = if (markerInfo.attribution.isNullOrEmpty()) {
+            markerInfo.address
         } else {
-            placeInfo.address + "\n" + placeInfo.attribution
+            markerInfo.address + "\n" + markerInfo.attribution
         }
 
         // マーカーを生成してカメラを移動
         mMap.addMarker(MarkerOptions()
-                .title(placeInfo.name)
-                .position(placeInfo.latLng)
+                .title(markerInfo.name)
+                .position(markerInfo.latLng)
                 .snippet(markerSnippet))
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(placeInfo.latLng, DEFAULT_ZOOM))
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(markerInfo.latLng, DEFAULT_ZOOM))
+
+        markers.add(markerInfo)
     }
 
     fun updateCurrentLatLng(currentLatLng: LatLng){
         // 距離が一定以内に入ったらお知らせイベント
-        if(this.mapListener.distanceLogic.isNotify(currentLatLng)){
+        if(this.mapListener.isNotify(currentLatLng)){
             EventBus.getDefault().post(StartAlertEvent())
         }
 
         this.currentLatLng = currentLatLng
-
-        this.mapListener.setTargetLocation(currentLatLng)
     }
 }
