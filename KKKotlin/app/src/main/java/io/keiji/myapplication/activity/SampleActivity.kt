@@ -36,7 +36,7 @@ class SampleActivity : AppCompatActivity() {
 
     private fun stopAlert(){
         EventBus.getDefault().post(ToastEvent("hogehoge"))
-        EventBus.getDefault().post(StopAlertEvent())
+//        EventBus.getDefault().post(StopAlertEvent())
     }
 
 }

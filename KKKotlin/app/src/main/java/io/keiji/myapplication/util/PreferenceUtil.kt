@@ -1,11 +1,11 @@
 package io.keiji.myapplication.util
 
 import android.content.SharedPreferences
+import com.google.android.gms.maps.model.LatLng
 import com.google.gson.Gson
 import io.keiji.myapplication.entity.MarkerInfo
-import com.google.android.gms.drive.metadata.CustomPropertyKey.fromJson
 import com.google.gson.reflect.TypeToken
-
+import io.keiji.myapplication.entity.ParcelableMarkerInfo
 
 
 private const val PREF_KEY_MARKERS = "pref_key_markers"
@@ -20,17 +20,22 @@ class PreferenceUtil{
 
     private val gson = Gson()
 
-    fun setMarkers(pref: SharedPreferences, markers: List<MarkerInfo>){
-        this.setPreference(pref, PREF_KEY_MARKERS, gson.toJson(markers))
+    fun setMarkers(pref: SharedPreferences, markers: HashMap<LatLng, ParcelableMarkerInfo>){
+        this.setPreference(pref, PREF_KEY_MARKERS, gson.toJson(markers.values))
     }
 
-    fun getMarkers(pref: SharedPreferences): MutableList<MarkerInfo>{
-        val json = this.getPreference(pref, PREF_KEY_MARKERS)
-        if(json == null) {
-            return ArrayList()
+    fun getMarkers(pref: SharedPreferences): HashMap<LatLng, ParcelableMarkerInfo>{
+        var map = HashMap<LatLng, ParcelableMarkerInfo>()
+
+        this.getPreference(pref, PREF_KEY_MARKERS)?.let{
+            val listType = object : TypeToken<ArrayList<ParcelableMarkerInfo>>() { }.type
+            val json = gson.fromJson<ArrayList<ParcelableMarkerInfo>>(it!!, listType)
+            for(marker in json){
+                map.put(marker.latLng!!, marker)
+            }
         }
-        val listType = object : TypeToken<MutableList<MarkerInfo>>() { }.type
-        return gson.fromJson<MutableList<MarkerInfo>>(json, listType)
+
+        return map
     }
 
     private fun setPreference(pref: SharedPreferences, key: String, json: String){

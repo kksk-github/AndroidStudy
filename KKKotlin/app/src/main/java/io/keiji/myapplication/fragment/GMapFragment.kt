@@ -7,6 +7,7 @@ import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.location.Location
 import android.os.Bundle
 import android.support.v4.app.ActivityCompat
 import android.support.v4.app.Fragment
@@ -28,13 +29,16 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.android.gms.tasks.Task
 import io.keiji.myapplication.R
-import io.keiji.myapplication.entity.MarkerInfo
+import io.keiji.myapplication.activity.SettingActivity
+import io.keiji.myapplication.entity.ParcelableMarkerInfo
 import io.keiji.myapplication.event.StartAlertEvent
 import io.keiji.myapplication.listener.MapListener
+import io.keiji.myapplication.logic.DistanceLogic
 import io.keiji.myapplication.util.PreferenceUtil.Companion.preferenceUtil
 import org.greenrobot.eventbus.EventBus
 import timber.log.Timber
@@ -42,27 +46,32 @@ import timber.log.Timber
 private const val PERMISSIONS_REQUEST_ACCESS_FINE_LOCATION: Int = 1
 private const val DEFAULT_ZOOM: Float = 15f
 private const val PLACE_PICKER_REQUEST: Int = 1
+private const val SETTING_REQUEST: Int = 2
 private const val SHARED_PREFERENCE_FILE_NAME = "DEFAULT_PREF"
 
 /**
  * Created by z00s600051 on 2018/12/05.
  */
-class GMapFragment: Fragment(), OnMapReadyCallback {
+class GMapFragment : Fragment(), OnMapReadyCallback {
     private lateinit var mMap: GoogleMap
     private lateinit var mGeoDataClient: GeoDataClient
     private lateinit var mPlaceDetectionClient: PlaceDetectionClient
     private lateinit var mFusedLocationProviderClient: FusedLocationProviderClient
     private lateinit var mapListener: MapListener
-    private lateinit var markers: MutableList<MarkerInfo>
+    private lateinit var markers: HashMap<LatLng, ParcelableMarkerInfo>
+    private lateinit var markerObjects: HashMap<LatLng, Marker>
     private lateinit var pref: SharedPreferences
+    private lateinit var distanceLogic: DistanceLogic
 
     private var currentLatLng: LatLng = LatLng(0.0, 0.0)
 
-    override fun onCreate(savedInstanceState: Bundle?){
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         mapListener = MapListener()        // Preferenceを定義
         pref = activity.getSharedPreferences(SHARED_PREFERENCE_FILE_NAME, 0)
+        markerObjects = HashMap()
+        distanceLogic = DistanceLogic()
     }
 
     override fun onCreateView(inflater: LayoutInflater?,
@@ -78,7 +87,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
         this.requestPermission()
     }
 
-    override fun onPause(){
+    override fun onPause() {
         super.onPause()
 
         preferenceUtil.setMarkers(pref, markers)
@@ -88,11 +97,11 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
      * 位置情報取得権限を確認し、あればマップを準備、なければ位置情報取得権限のリクエストを行う.
      * 位置情報取得権限がつかない限りループする.
      */
-    private fun requestPermission(){
+    private fun requestPermission() {
         // 位置情報取得権限の確認、ある場合はマップ準備、ない場合はリクエスト
         val isLocationPermissionGranted = ContextCompat.checkSelfPermission(activity,
                 Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-        if(isLocationPermissionGranted) {
+        if (isLocationPermissionGranted) {
             initMap()
         } else {
             Toast.makeText(activity, "アプリ実行には位置情報権限が必要です.", Toast.LENGTH_LONG).show()
@@ -119,14 +128,14 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
      * Mapを準備する
      */
     @SuppressLint("MissingPermission")
-    private fun initMap(){
+    private fun initMap() {
         // GoogleMapAPIClientの初期化
         mGeoDataClient = Places.getGeoDataClient(activity, null)
         mPlaceDetectionClient = Places.getPlaceDetectionClient(activity, null)
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(activity)
 
         // GoogleMapの初期化
-        val mapFragment = getChildFragmentManager().findFragmentById(R.id.map) as SupportMapFragment
+        val mapFragment = childFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
 
         mapFragment.getMapAsync(this)
     }
@@ -149,8 +158,8 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
 
         // Preferenceからマーカー情報を取得して画面にセット
         markers = preferenceUtil.getMarkers(pref)
-        for(marker: MarkerInfo in markers){
-            addMarker(marker)
+        for (marker in markers) {
+            addMarker(marker.value)
         }
     }
 
@@ -193,7 +202,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     /**
      * PlacePickerを表示する
      */
-    fun pickPlaceInfo(){
+    fun pickPlaceInfo() {
         val builder = PlacePicker.IntentBuilder()
         builder.setLatLngBounds(LatLngBounds(LatLng(currentLatLng.latitude, currentLatLng.longitude)
                 , LatLng(currentLatLng.latitude, currentLatLng.longitude + 1)))
@@ -203,13 +212,22 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     /**
      * ActivityResult受け取り処理
      */
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?){
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         /**
          * PlacePickerで取得した情報をPlaceInfoとして保持する
          */
-        if(requestCode == PLACE_PICKER_REQUEST && resultCode == Activity.RESULT_OK){
+        if (requestCode == PLACE_PICKER_REQUEST && resultCode == Activity.RESULT_OK) {
             val place = PlacePicker.getPlace(activity, data)
-            addMarker(MarkerInfo(place))
+            val marker = ParcelableMarkerInfo(place)
+            markers.put(marker.latLng!!, marker)
+            addMarker(marker)
+        } else if (requestCode == SETTING_REQUEST) {
+            data?.let {
+                it.getParcelableArrayListExtra<ParcelableMarkerInfo>("test").forEach {
+                    val hoge = markers[it!!.latLng!!]
+                    markers[it!!.latLng!!]?.flgTarget = it!!.flgTarget
+                }
+            }
         }
     }
 
@@ -234,7 +252,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
                     maxEntries
                 }
 
-                val placeInfoList: MutableList<MarkerInfo> = mutableListOf()
+                val placeInfoList: MutableList<ParcelableMarkerInfo> = mutableListOf()
 
                 for ((index, placeLikelihood) in likelyPlaces.withIndex()) {
                     val name = placeLikelihood.place.name as String
@@ -246,7 +264,7 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
                     }
                     val latLng = placeLikelihood.place.latLng
 
-                    placeInfoList.add(MarkerInfo(name, address, attribution, latLng))
+                    placeInfoList.add(ParcelableMarkerInfo(name, address, attribution, latLng))
 
                     if (index >= (count - 1)) {
                         break
@@ -264,15 +282,17 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     /**
      * 取得されたプレイスをダイアログで表示
      */
-    private fun openPlacesDialog(placeInfoList: List<MarkerInfo>) {
+    private fun openPlacesDialog(ParcelableMarkerInfoList: List<ParcelableMarkerInfo>) {
         // ダイアログクリック時イベント登録
-        // クリックされたMarkerInfoでマーカーを打つ
+        // クリックされたParcelableMarkerInfoでマーカーを打つ
         val listener = DialogInterface.OnClickListener { _, which ->
-            addMarker(placeInfoList[which])
+            val marker = ParcelableMarkerInfoList[which]
+            markers.put(marker.latLng!!, marker)
+            addMarker(marker)
         }
 
         // ダイアログ表示用のPlaceNameリストを生成
-        val places = placeInfoList.map({v -> v.name}).toTypedArray()
+        val places = ParcelableMarkerInfoList.map({ v -> v.name }).toTypedArray()
 
         // プレイス選択ダイアログを表示する
         AlertDialog.Builder(activity)
@@ -282,32 +302,80 @@ class GMapFragment: Fragment(), OnMapReadyCallback {
     }
 
     /**
-     * 渡されたMarkerInfoを元にMapにMarkerを打つ
+     * 渡されたParcelableMarkerInfoを元にMapにMarkerを打つ
      */
-    private fun addMarker(markerInfo: MarkerInfo){
+    private fun addMarker(marker: ParcelableMarkerInfo) {
         // Attributionの有無をチェックしてスニペットを作成
-        val markerSnippet = if (markerInfo.attribution.isNullOrEmpty()) {
-            markerInfo.address
+        val markerSnippet = if (marker.attribution.isNullOrEmpty()) {
+            marker.address
         } else {
-            markerInfo.address + "\n" + markerInfo.attribution
+            marker.address + "\n" + marker.attribution
         }
 
         // マーカーを生成してカメラを移動
-        mMap.addMarker(MarkerOptions()
-                .title(markerInfo.name)
-                .position(markerInfo.latLng)
+        val markerObj = mMap.addMarker(MarkerOptions()
+                .title(marker.name)
+                .position(marker.latLng!!)
                 .snippet(markerSnippet))
-        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(markerInfo.latLng, DEFAULT_ZOOM))
 
-        markers.add(markerInfo)
+        // マップに追加したマーカを管理用HashMapに保存
+        markerObjects.put(marker.latLng!!, markerObj)
+
+        // マップをマーカの位置に移動
+        mMap.moveCamera(CameraUpdateFactory.newLatLngZoom(marker.latLng!!, DEFAULT_ZOOM))
     }
 
-    fun updateCurrentLatLng(currentLatLng: LatLng){
+    fun updateCurrentLatLng(currentLatLng: LatLng) {
         // 距離が一定以内に入ったらお知らせイベント
-        if(this.mapListener.isNotify(currentLatLng)){
-            EventBus.getDefault().post(StartAlertEvent())
+        markers.values.forEach {
+            if (distanceLogic.isNotify(currentLatLng, it)) {
+                EventBus.getDefault().post(StartAlertEvent(it.latLng!!))
+            }
         }
 
         this.currentLatLng = currentLatLng
+    }
+
+    /**
+     * マーカを削除する
+     */
+    fun deleteMarker(latLng: LatLng) {
+        val array = FloatArray(3)
+        latLng.let {
+            for (marker in markers) {
+                Location.distanceBetween(marker.value.latLng!!.latitude, marker.value.latLng!!.longitude, it.latitude, it.longitude, array)
+                val currentDistance = array[0]
+                if (currentDistance < 20) {
+                    markerObjects[marker.value.latLng!!].let {
+                        (it as Marker).remove()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * ターゲット設定する
+     */
+    fun setTarget(latLng: LatLng) {
+        markers[latLng].let {
+            (it as ParcelableMarkerInfo).flgTarget = true
+        }
+    }
+
+    /**
+     * 設定画面を開く
+     */
+    fun startMarkerSetting() {
+        val intent = Intent(activity.applicationContext, SettingActivity::class.java)
+        intent.putParcelableArrayListExtra("test", ArrayList<ParcelableMarkerInfo>(markers.values))
+        startActivityForResult(intent, SETTING_REQUEST)
+    }
+
+    fun stopAlert(latLng: LatLng) {
+        // マーカのフラグをOFF
+        markers[latLng].let {
+            (it as ParcelableMarkerInfo).flgTarget = false
+        }
     }
 }

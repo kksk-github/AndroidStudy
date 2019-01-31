@@ -2,31 +2,21 @@ package io.keiji.myapplication.logic
 
 import android.location.Location
 import com.google.android.gms.maps.model.LatLng
-import io.keiji.myapplication.event.ToastEvent
-import org.greenrobot.eventbus.EventBus
+import io.keiji.myapplication.entity.ParcelableMarkerInfo
+
+private const val NOTIFY_DISTANCE: Double = 500.0 // メートル
 
 /**
  * Created by z00s600051 on 2018/11/28.
  */
 class DistanceLogic{
-    private var notifyDistance: Double
-    private var targetLocation: LatLng
+    fun isNotify(current: LatLng, marker: ParcelableMarkerInfo): Boolean{
+        if(!marker.flgTarget) { return false }
 
-    init{
-        this.notifyDistance = 500.0
-        this.targetLocation = LatLng(0.0, 0.0)
-    }
-
-    fun setTargetLocation(location: LatLng){
-        this.targetLocation = location
-    }
-
-    fun isNotify(latLng: LatLng): Boolean{
         val array = FloatArray(3)
-        Location.distanceBetween(targetLocation.latitude, targetLocation.longitude, latLng.latitude, latLng.longitude,  array)
+        Location.distanceBetween(marker.latitude!!, marker.longitude!!, current.latitude, current.longitude,  array)
         val currentDistance = array[0]
-//        EventBus.getDefault().post(ToastEvent("目標までの距離：" + currentDistance.toString() + "m"))
 
-        return currentDistance < notifyDistance
+        return currentDistance < NOTIFY_DISTANCE
     }
 }

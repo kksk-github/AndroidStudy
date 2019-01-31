@@ -5,6 +5,7 @@ import android.support.v4.app.Fragment
 import android.view.*
 import io.keiji.myapplication.R
 import io.keiji.myapplication.event.MapCallEvent
+import io.keiji.myapplication.event.StartSettingEvent
 import org.greenrobot.eventbus.EventBus
 
 /**
@@ -37,6 +38,9 @@ class OptionFragment: Fragment() {
         } else if (item.itemId == R.id.option_pick_place) {
             // 検索してPlaceを取得
             EventBus.getDefault().post(MapCallEvent(MapCallEvent.MapCallEnum.PickPlace))
+        } else if (item.itemId == R.id.option_setting) {
+            // 設定画面を開く
+            EventBus.getDefault().post(MapCallEvent(MapCallEvent.MapCallEnum.StartMarkerSetting))
         }
         return true
     }

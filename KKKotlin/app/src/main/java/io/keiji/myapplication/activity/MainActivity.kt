@@ -7,8 +7,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
-import android.graphics.Color
 import android.support.v7.app.AppCompatActivity
 
 import android.os.Bundle
@@ -37,7 +35,7 @@ class MainActivity : AppCompatActivity(){
     private lateinit var ringtone: Ringtone
     private lateinit var vibrator: Vibrator
     private lateinit var pattern: LongArray
-    private lateinit var notification: Notification
+    private lateinit var notification: NotificationCompat.Builder
 
     /**
      * Toastを表示する用受け口
@@ -69,9 +67,15 @@ class MainActivity : AppCompatActivity(){
         ringtone.play()
         vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
 
+        // 通知削除時Intent定義
+        val intent = Intent(applicationContext, NotificationReceiver::class.java)
+        intent.action = DELETE_NOTIFICATION
+        intent.putExtra("latLng", event.latLng)
+        notification.setDeleteIntent(PendingIntent.getBroadcast(applicationContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT))
+
         // 通知を送信
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        manager.notify(123, notification)
+        manager.notify(123, notification.build())
 
     }
 
@@ -86,10 +90,10 @@ class MainActivity : AppCompatActivity(){
     }
 
     /**
-     * PlacePicker開始口
+     * PlacePicker or getAroundCurrentPlace開始口
      */
     @Subscribe
-    fun pickPlaceEvent(event: MapCallEvent){
+    fun mapCallEvent(event: MapCallEvent){
         supportFragmentManager.findFragmentById(R.id.mapContainer)?.let{
             when(event.callEnum){
                 MapCallEvent.MapCallEnum.GetAroundCurrent -> {
@@ -98,9 +102,30 @@ class MainActivity : AppCompatActivity(){
                 MapCallEvent.MapCallEnum.PickPlace -> {
                     (it as GMapFragment).pickPlaceInfo()
                 }
+                MapCallEvent.MapCallEnum.DeleteMarker -> {
+                    (it as GMapFragment).deleteMarker(event.latLng!!)
+                }
+                MapCallEvent.MapCallEnum.StartMarkerSetting -> {
+                    (it as GMapFragment).startMarkerSetting()
+                }
+                MapCallEvent.MapCallEnum.SetTarget -> {
+                    (it as GMapFragment).setTarget(event.latLng!!)
+                }
+                MapCallEvent.MapCallEnum.StopAlert -> {
+                    (it as GMapFragment).stopAlert(event.latLng!!)
+                    ringtone.stop()
+                    vibrator.cancel()
+                }
             }
         }
     }
+
+    @Subscribe
+    fun startSettingEvent(event: StartSettingEvent){
+
+    }
+    
+    
 
     /**
      * Activity onCreate
@@ -135,17 +160,12 @@ class MainActivity : AppCompatActivity(){
             manager.createNotificationChannel(mChannel)
         }
 
-        // 通知削除時Intent定義
-        val intent = Intent(applicationContext, NotificationReceiver::class.java)
-        intent.action = DELETE_NOTIFICATION
-
         // 通知に値を設定
         notification = NotificationCompat.Builder(this, id).apply {
             mContentTitle = name
             mContentText = notifyDescription
             setSmallIcon(R.mipmap.ic_launcher)
-            setDeleteIntent(PendingIntent.getBroadcast(applicationContext, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT))
-        }.build()
+        }
 
         // Fragmentを設定
         if(savedInstanceState == null){
@@ -171,6 +191,10 @@ class MainActivity : AppCompatActivity(){
 
         // LocationServiceを停止
         stopService()
+
+        // アラートを念の為停止
+        ringtone.stop()
+        vibrator.cancel()
     }
 
     private fun startService(){

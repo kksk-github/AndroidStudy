@@ -10,4 +10,8 @@
         android:id="@+id/option_get_place"
         android:title="@string/option_get_place"
         app:showAsAction="never"/>
+    <item
+        android:id="@+id/option_setting"
+        android:title="@string/option_setting"
+        app:showAsAction="never"/>
 </menu>
